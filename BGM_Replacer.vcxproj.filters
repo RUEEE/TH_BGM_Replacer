@@ -69,6 +69,9 @@
     <ClInclude Include="BGM_player.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>资源文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rdParty\ImGui\imgui.cpp">
@@ -124,5 +127,15 @@
     <None Include="3rdParty\ImGui\imgui_user.inl">
       <Filter>3rdParty\imgui</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="bgm_repl_icon.ico">
+      <Filter>资源文件</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="BGM_Replacer.rc">
+      <Filter>资源文件</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

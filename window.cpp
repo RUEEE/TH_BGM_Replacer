@@ -1,12 +1,11 @@
 #include "window.h"
 #include "BGM_player.h"
+#include "resource.h"
 
 IDirect3D9* g_pD3D;
 D3DPRESENT_PARAMETERS g_d3dpp;
 IDirect3DDevice9* g_pd3dDevice;
 
-extern std::unique_ptr<BGM_Player> g_player;
-extern HANDLE g_hevent_loopbgm;
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -42,11 +41,14 @@ HRESULT ImGuiWindow::CreateGuiWindow(ImGuiWindowInfo info)
     wndClass.lpfnWndProc = WndProc;
     wndClass.hInstance = info.hInstance;
     wndClass.lpszClassName = info.className;
+    wndClass.hIcon = LoadIcon(info.hInstance, MAKEINTRESOURCE(IDI_ICON1));
     ATOM wca = RegisterClassW(&wndClass);
 
     pwind->mHwnd = ::CreateWindow((LPCWSTR)wca, info.title,
         WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX, 0, 0, info.initialWidth, info.initialHeight,
         NULL, NULL, info.hInstance, NULL);
+
+    SetWindowPos(pwind->mHwnd, HWND_TOP, 320, 240, 0, 0, SWP_NOSIZE);
     if (!pwind->mHwnd)
     {
         return FAIL_TO_CREATE_WINDOW;
@@ -210,9 +212,6 @@ void ImGuiWindow::Update()
 {
 
     while (GuiNewFrame()) {
-        if (WAIT_OBJECT_0 == WaitForSingleObject(g_hevent_loopbgm, 1)) {
-            g_player->JumpLoop();
-        }
         ImGui::SetNextWindowSizeConstraints(ImVec2(640.0f, 480.0f), ImVec2(1280.0f, 960.0f));
         ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(960.0f, 720.0f), ImGuiCond_FirstUseEver);

@@ -5,116 +5,190 @@
 #pragma comment(lib, "dxguid.lib")
 
 
-BGM_Player::BGM_Player(HWND hwnd):LoopPos(0),bufferSize(0),playPos(0),pSoundBuffer(nullptr)
+BGM_Player::BGM_Player():pxAudio(nullptr),pMasteringVoice(nullptr),pSourceVoice(nullptr),pCallback(nullptr), is_paused(false), volume(0.5f)
 {
-	if (FAILED(DirectSoundCreate(nullptr, &lpDirectSound, nullptr))){
-		return;
-	}
-	lpDirectSound->SetCooperativeLevel(hwnd, DSSCL_NORMAL);
+
 }
 
-bool BGM_Player::LoadBGM(BGM_Info* pBGMInfo, HANDLE loopEvent)
+HRESULT BGM_Player::LoadBGM(BGM_Info* pBGMInfo)
 {
+	if (pSourceVoice){
+		Stop();
+		pSourceVoice->DestroyVoice();
+	}
+	is_paused = true;
+	curBGM = pBGMInfo;
 	// set buffer
-	if (pSoundBuffer)
-	{
-		pSoundBuffer->Release();
-		pSoundBuffer = nullptr;
-	}
-	bufferSize = pBGMInfo->GetTotalLen();
-	DSBUFFERDESC desc;
-	memset(&desc, 0, sizeof(desc));
-	desc.dwSize = sizeof(DSBUFFERDESC);
-	desc.dwFlags = DSBCAPS_CTRLPOSITIONNOTIFY | DSBCAPS_GLOBALFOCUS | DSBCAPS_GETCURRENTPOSITION2;
-	desc.dwBufferBytes = bufferSize;
-	desc.lpwfxFormat = &pBGMInfo->wavHeader;
-	if (FAILED(lpDirectSound->CreateSoundBuffer(&desc, &pSoundBuffer, nullptr)))
-		return false;
-
+	HRESULT hr;
+	if (pCallback)
+		delete pCallback;
+	pCallback = new PlayerCallback();
+	pCallback->player = this;
+	if (FAILED(hr = pxAudio->CreateSourceVoice(&pSourceVoice,&pBGMInfo->wavHeader,0,2.0f, pCallback,NULL,NULL)))
+		return hr;
+	samplesPlayedBeforeLastStop = 0;
+	volume = SetVolume(volume);
 	// load buffer from file
-	LPVOID lpvPtr1;
-	DWORD dwBytes1;
-	if (FAILED(pSoundBuffer->Lock(0, 0, &lpvPtr1, &dwBytes1, 0, 0, DSBLOCK_ENTIREBUFFER)))
-	{
-		pSoundBuffer->Release();
-		pSoundBuffer = nullptr;
-		return false;
-	}
+	buffer.clear();
 	std::fstream fs;
 	if(pBGMInfo->type == DAT_FILE)
 		fs = std::fstream(pBGMInfo->BGMFilePath_dat, std::ios::in | std::ios::binary);
 	else
 		fs = std::fstream(pBGMInfo->BGMFilePath_wav, std::ios::in | std::ios::binary);
-	
 	if (!fs.is_open())
-		return false;
-	char ch;
-	fs.read(&ch, 1);
-	fs.seekg(pBGMInfo->GetEnterPos(), std::ios::beg);
-	int len = 0;
+		return E_FAIL;
+	fs.seekg(pBGMInfo->GetBeginPos(), std::ios::beg);
 	int totLen = pBGMInfo->GetTotalLen();
-
-	fs.read((char*)lpvPtr1, dwBytes1);
-	if (!fs.good())
-	{
-		pSoundBuffer->Unlock(lpvPtr1, dwBytes1, 0, 0);
-		pSoundBuffer->Release();
-		pSoundBuffer = nullptr;
-		return false;
+	buffer.resize(totLen);
+	fs.read((char*)buffer.data(), totLen);
+	if (!fs.good()){
+		return E_FAIL;
 	}
 
-	// set event
-	DSBPOSITIONNOTIFY PositionNotify;
-	LPDIRECTSOUNDNOTIFY8 lpDsNotify;
+	// set buffer
+	return S_OK;
+}
 
-	if (FAILED(pSoundBuffer->QueryInterface(IID_IDirectSoundNotify,(LPVOID*)&lpDsNotify))){
-		pSoundBuffer->Release();
-		pSoundBuffer = nullptr;
-		return false;
+
+HRESULT BGM_Player::Init()
+{
+	HRESULT hr=S_OK;
+	if (FAILED(hr = XAudio2Create(&pxAudio, 0)))
+		return hr;
+	if (FAILED(hr = pxAudio->CreateMasteringVoice(&pMasteringVoice)))
+		return hr;
+}
+
+HRESULT BGM_Player::Play(BGM_Info* pInfo, DWORD pos)
+{
+	if (!pSourceVoice || curBGM!=pInfo){
+		this->LoadBGM(pInfo);
 	}
-	PositionNotify.dwOffset = pBGMInfo->GetEnterLoopLen() - 1;
-	PositionNotify.hEventNotify = loopEvent;
-	if (FAILED(lpDsNotify->SetNotificationPositions(1, &PositionNotify))){
-		pSoundBuffer->Release();
-		pSoundBuffer = nullptr;
-		return false;
+	is_paused = false;
+	XAUDIO2_VOICE_STATE state;
+	pSourceVoice->GetState(&state);
+	if (state.BuffersQueued==0){
+		memset(&buf,0,sizeof(buf));
+		buf.Flags = 0;
+		DWORD sample = pInfo->wavHeader.nChannels * pInfo->wavHeader.wBitsPerSample / 8;
+		buf.pAudioData = buffer.data();
+		buf.AudioBytes = buffer.size()/sample * sample; //aligned to sample
+		if (pos < 0)pos = 0;
+		if (pos < pInfo->GetBeginLoopLen()){
+			buf.PlayBegin = pos / sample;
+			buf.PlayLength = pInfo->GetBeginLoopLen()/ sample - buf.PlayBegin;
+			buf.LoopBegin = pInfo->GetBeginLen()/ sample;
+			buf.LoopLength = pInfo->GetLoopLen() / sample;
+			buf.LoopCount = XAUDIO2_LOOP_INFINITE;
+		}else{
+			if (pos > pInfo->GetTotalLen())
+				pos = pInfo->GetTotalLen() - 100;
+			buf.PlayBegin = pos / sample;
+			buf.PlayLength = pInfo->GetTotalLen() / sample - buf.PlayBegin;
+			buf.LoopBegin = 0;
+			buf.LoopLength = 0;
+			buf.LoopCount = 0;
+		}
+		samplesPlayedBeforeLastStop = state.SamplesPlayed - buf.PlayBegin;
+		buf.pContext = NULL;
+		HRESULT hr = pSourceVoice->SubmitSourceBuffer(&buf);
+		if (FAILED(hr))
+			return hr;
 	}
-	lpDsNotify->Release();
-
-	playPos = 0;
-	LoopPos = pBGMInfo->GetEnterLen();
-	return true;
+	return pSourceVoice->Start(0, XAUDIO2_COMMIT_NOW);
 }
 
-
-void BGM_Player::Play()
+HRESULT BGM_Player::Stop()
 {
-	if (playPos > bufferSize)
-		playPos = bufferSize;
-	pSoundBuffer->SetCurrentPosition(playPos);
-	pSoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
+	if (!pSourceVoice)
+		return E_FAIL;
+	XAUDIO2_VOICE_STATE state;
+	pSourceVoice->GetState(&state);
+	while (state.BuffersQueued){
+		HRESULT hr = pSourceVoice->Stop(0, XAUDIO2_COMMIT_NOW);
+		if (FAILED(hr))
+			return hr;
+		if (FAILED(hr = pSourceVoice->FlushSourceBuffers()))
+			return hr;
+		Sleep(1);
+		pSourceVoice->GetState(&state);
+	}
+	samplesPlayedBeforeLastStop = state.SamplesPlayed;
+	is_paused = true;
+	return S_OK;
 }
 
-void BGM_Player::Stop()
+HRESULT BGM_Player::Pause()
 {
-	pSoundBuffer->Stop();
-	playPos = 0;
-	pSoundBuffer->Release();
+	if (!pSourceVoice)
+		return E_FAIL;
+	is_paused = true;
+	return pSourceVoice->Stop(0, XAUDIO2_COMMIT_NOW);
 }
 
-void BGM_Player::Pause()
+HRESULT BGM_Player::SetPos(BGM_Info* pInfo, DWORD pos)
 {
-	pSoundBuffer->Stop();
-	DWORD dwWriteCursor;
-	pSoundBuffer->GetCurrentPosition(&playPos, &dwWriteCursor);
+	if (!pSourceVoice)
+		return E_FAIL;
+	HRESULT hr;
+	bool pause2 = is_paused;
+	hr = this->Stop();
+	if (FAILED(hr))
+		return hr;
+	if (FAILED(hr = this->Play(pInfo, pos)))
+		return hr;
+	if(pause2)
+		return this->Pause();
+	return hr;
 }
 
-void BGM_Player::JumpLoop()
+DWORD BGM_Player::GetCurPos()
 {
-	pSoundBuffer->SetCurrentPosition(LoopPos);
+	if (!pSourceVoice)
+		return 0;
+	XAUDIO2_VOICE_STATE state;
+	pSourceVoice->GetState(&state);
+	DWORD sample = curBGM->wavHeader.nChannels * curBGM->wavHeader.wBitsPerSample / 8;
+	return (state.SamplesPlayed - samplesPlayedBeforeLastStop) * sample;
 }
+
+HRESULT BGM_Player::ResetCurBGM()
+{
+	auto pos = this->GetCurPos();
+	bool pause2 = is_paused;
+	HRESULT hr = this->Stop();
+	if (FAILED(hr))
+		return hr;
+	if (FAILED(hr = Play(this->curBGM, pos)))
+		return hr;
+	if (pause2)
+		return this->Pause();
+	return hr;
+}
+
+float BGM_Player::SetVolume(float vin)
+{
+	volume = vin * vin /10.0f;
+	if (pSourceVoice){
+		pSourceVoice->SetVolume(vin * vin / 10.0f);
+		volume = GetVolume();
+	}
+	return volume;
+}
+
+float BGM_Player::GetVolume()
+{
+	if (pSourceVoice) {
+		float v = 0.0f;
+		pSourceVoice->GetVolume(&v);
+		volume = sqrt(v*10.0f);
+	}
+	return volume;
+}
+
 
 BGM_Player::~BGM_Player()
 {
-	lpDirectSound->Release();
+	if(pMasteringVoice)pMasteringVoice->DestroyVoice();
+	if (pxAudio)pxAudio->Release();
 }

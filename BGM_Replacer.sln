@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34607.119
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BGM_Replacer", "BGM_Replacer.vcxproj", "{53961EF9-EA61-4324-8CE6-14C0EBE24719}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{53961EF9-EA61-4324-8CE6-14C0EBE24719}.Debug|x64.ActiveCfg = Debug|x64
+		{53961EF9-EA61-4324-8CE6-14C0EBE24719}.Debug|x64.Build.0 = Debug|x64
+		{53961EF9-EA61-4324-8CE6-14C0EBE24719}.Debug|x86.ActiveCfg = Debug|Win32
+		{53961EF9-EA61-4324-8CE6-14C0EBE24719}.Debug|x86.Build.0 = Debug|Win32
+		{53961EF9-EA61-4324-8CE6-14C0EBE24719}.Release|x64.ActiveCfg = Release|x64
+		{53961EF9-EA61-4324-8CE6-14C0EBE24719}.Release|x64.Build.0 = Release|x64
+		{53961EF9-EA61-4324-8CE6-14C0EBE24719}.Release|x86.ActiveCfg = Release|Win32
+		{53961EF9-EA61-4324-8CE6-14C0EBE24719}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3207BE0D-6D0F-43AB-A0FE-608E0D308DC0}
+	EndGlobalSection
+EndGlobal

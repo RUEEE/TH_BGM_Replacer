@@ -1,0 +1,128 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="3rdParty">
+      <UniqueIdentifier>{0f6642af-254d-4843-9df7-f01600d3a9d9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="3rdParty\imgui">
+      <UniqueIdentifier>{e2cf2378-7587-4f78-8873-0371e26add43}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="3rdParty\ImGui\imconfig.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\imgui.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\imgui_impl_dx9.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\imgui_impl_win32.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\imgui_internal.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\imgui_stdlib.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\imgui_user.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\implot.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\implot_internal.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\imstb_rectpack.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\imstb_textedit.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\ImGui\imstb_truetype.h">
+      <Filter>3rdParty\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="window.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="utils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="BGM_def.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="BGM_player.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="3rdParty\ImGui\imgui.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\imgui_demo.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\imgui_draw.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\imgui_impl_dx9.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\imgui_impl_win32.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\imgui_stdlib.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\imgui_tables.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\imgui_widgets.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\implot.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\implot_demo.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\ImGui\implot_items.cpp">
+      <Filter>3rdParty\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="window.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="utils.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="bgm_def.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="BGM_player.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="3rdParty\ImGui\imgui_user.inl">
+      <Filter>3rdParty\imgui</Filter>
+    </None>
+  </ItemGroup>
+</Project>

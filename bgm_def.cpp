@@ -5,6 +5,7 @@
 #include "BGM_def.h"
 #include "utils.h"
 
+
 const std::wstring bgm_names06[17] = {
 	L"³à¤è¤ê¼t¤¤‰ô",
 	L"¤Û¤ª¤º¤­¤ß¤¿¤¤¤Ë¼t¤¤»ê",
@@ -229,7 +230,7 @@ void BGM_Dump::ExportBGM(const WCHAR* folder)
 			pos_path = pos_path / wav_posname;
 
 			// read wav file head
-			int samples = it.wavHeader.nChannels * it.wavHeader.wBitsPerSample / 8;
+			int samples = it.GetSampleByteSize();
 
 			SingleBGM06 bgm06 = { 
 				(it.beginLen + 44)/samples,
@@ -301,6 +302,258 @@ void BGM_Dump::ExportBGM(const WCHAR* folder)
 		char fmt_end[0x11] = { 0 };
 		fmt_ofile_fs.write(fmt_end, 0x11);
 		fmt_ofile_fs.close();
+	}
+}
+
+void BGM_Dump::GetWavFile(BGM_Info* pBGMInfo, std::vector<BYTE>& begin, std::vector<BYTE>& loop, std::vector<BYTE>& end)
+{
+	std::fstream fs;
+	if (pBGMInfo->type == DAT_FILE)
+		fs = std::fstream(pBGMInfo->BGMFilePath_dat, std::ios::in | std::ios::binary);
+	else
+		fs = std::fstream(pBGMInfo->BGMFilePath_wav, std::ios::in | std::ios::binary);
+	if (!fs.is_open())
+		return;
+
+	begin.clear();
+	loop.clear();
+	end.clear();
+
+	int sample_bytesize = pBGMInfo->GetSampleByteSize();
+	int begin_len_aligned = pBGMInfo->GetBeginLen() / sample_bytesize* sample_bytesize;
+	if (begin_len_aligned > 0){
+		begin.resize(begin_len_aligned);
+		fs.seekg(pBGMInfo->GetBeginPos(), std::ios::beg);
+		fs.read((char*)begin.data(), begin_len_aligned);
+	}
+	int loop_len_aligned = pBGMInfo->GetLoopLen() / sample_bytesize * sample_bytesize;
+	if (loop_len_aligned > 0){
+		loop.resize(loop_len_aligned);
+		fs.seekg(pBGMInfo->GetBeginPos() + begin_len_aligned, std::ios::beg);
+		fs.read((char*)loop.data(), loop_len_aligned);
+	}
+	int begin_loop_len_aligned = begin_len_aligned + loop_len_aligned;
+	int tot_len_aligned = pBGMInfo->GetTotalLen() / sample_bytesize * sample_bytesize;
+	if (tot_len_aligned > begin_loop_len_aligned){
+		int end_len_aligned = tot_len_aligned - begin_loop_len_aligned;
+		end.resize(end_len_aligned);
+		fs.seekg(begin_loop_len_aligned + pBGMInfo->GetBeginPos(), std::ios::beg);
+		fs.read((char*)end.data(), end_len_aligned);
+	}
+	return;
+}
+
+
+void BGM_Dump::ExportBGMWavs(const WCHAR* folder, BGMWavExportOption* opt)
+{
+	for (int i = 0; i < bgmInfos.size(); i++){
+		auto& it = bgmInfos[i];
+		if (it.wavHeader.wFormatTag != 1)// NO PCM
+			continue;
+
+		static std::vector<BYTE> begin, loop, end;
+		GetWavFile(&it, begin, loop, end);
+
+		// open file
+		std::filesystem::path wav_opath = folder;
+		std::wstring filename;
+		if (it.bgmName.empty()){
+			filename = str2wstr(it.idName.c_str(), 932);
+		}else{
+			filename = str2wstr(it.bgmName.c_str(), 932);
+		}
+		// make filename legal
+		for (auto& j : filename) {
+			switch (j){
+			default: break;
+			case L'/':j = L'£¯'; break;
+			case L'\\':j = L'£Ü'; break;
+			case L':':j = L'£º'; break;
+			case L'*':j = L'£ª'; break;
+			case L'?':j = L'£¿'; break;
+			case L'\"':j = L'£Ü'; break;
+			case L'<':j = L'£¼'; break;
+			case L'>':j = L'£¾'; break;
+			case L'|':j = L'£ü'; break;
+			}
+		}
+		while (filename.size() >= 1 && filename[filename.size() - 1] == L'\0')
+			filename.pop_back();
+		filename += L".wav";
+		wav_opath = wav_opath / filename;
+		std::fstream fmt_ofile_fs(wav_opath, std::ios::out | std::ios::binary | std::ios::trunc);
+		// align to sample
+		int sample_bytesize = it.GetSampleByteSize();
+
+		// calculate samples
+		int total_data_bytes = begin.size() + loop.size() * opt->loop_time + (opt->enable_ending ? end.size() : 0);
+		int total_data_samples = total_data_bytes / sample_bytesize;
+		int fade_in_samples = opt->sec_for_fade_in * it.wavHeader.nSamplesPerSec;
+		int fade_out_samples = opt->sec_for_fade_out * it.wavHeader.nSamplesPerSec;
+
+		int begin_samples = begin.size() / sample_bytesize;
+		int loop_samples = loop.size() / sample_bytesize;
+		int end_samples = end.size() / sample_bytesize;
+
+		if (fade_in_samples > begin_samples)
+			fade_in_samples = begin_samples;
+		if (opt->enable_ending) {
+			if (fade_out_samples > loop_samples + end_samples)
+				fade_out_samples = loop_samples + end_samples;
+		}else {
+			if (fade_out_samples > loop_samples)
+				fade_out_samples = loop_samples;
+		}
+		
+		// write header
+		const char chunkID[4] = { 'R','I','F','F' };
+		const char format[4] = {'W','A','V','E'};
+		const char chunkID1[4] = {'f','m','t',' '};
+		const char chunkID2[4] = {'d','a','t','a'};
+		WAVEFORMATEX wavHeader = it.wavHeader;
+		DWORD chunksize = total_data_bytes + 44 - 8;
+
+		fmt_ofile_fs.write(chunkID, 4);// "RIFF",4
+		fmt_ofile_fs.write((char*)&chunksize, 4);// chunk size,8
+		fmt_ofile_fs.write((char*)&format, 4);// "WAVE",12
+		fmt_ofile_fs.write((char*)&chunkID1, 4);// "fmt ",16
+
+		DWORD chunksize1 = 16;
+		fmt_ofile_fs.write((char*)&chunksize1, 4);// size1, 20
+		fmt_ofile_fs.write((char*)&wavHeader, 16);// do not contain cbsize,36
+		fmt_ofile_fs.write((char*)&chunkID2, 4);// "data", 40
+
+		DWORD chunksize2 = total_data_bytes;
+		fmt_ofile_fs.write((char*)&chunksize2, 4);// size2, 44
+
+
+		auto volumn_intp = [](float v)->float
+			{
+				return v * v * v;
+			};
+
+		// write begin
+		int sample_iter = 0;
+		//fade in
+		int channel = it.wavHeader.nChannels;
+		for (sample_iter = 0; sample_iter < fade_in_samples; sample_iter++)
+		{
+			float cur_volume = volumn_intp((float)sample_iter / (float)fade_in_samples);
+			BYTE* pdata = begin.data() + sample_iter * sample_bytesize;
+			int cur_data = 0;
+			if (channel == 1){
+				switch (sample_bytesize) {
+				case 1:
+					cur_data = std::clamp((int)(*pdata * cur_volume), SCHAR_MIN, SCHAR_MAX); fmt_ofile_fs.write((char*)&cur_data, 1); break;
+				case 2:
+					cur_data = std::clamp((int)(*(short*)pdata * cur_volume), SHRT_MIN, SHRT_MAX); fmt_ofile_fs.write((char*)&cur_data, 2); break;
+				case 4:
+					cur_data = std::clamp((int)(*(int*)pdata * cur_volume), INT_MIN, INT_MAX); fmt_ofile_fs.write((char*)&cur_data, 4); break;
+				default: // ?
+				{
+					for (int j = 0; j < sample_bytesize; j++) {
+						BYTE data = *(pdata + j);
+						fmt_ofile_fs.write((char*)&data, 1); 
+					}
+				}break;
+				}
+			}else{
+				switch (sample_bytesize) {
+				case 2:
+					cur_data = std::clamp((int)(*pdata * cur_volume), SCHAR_MIN, SCHAR_MAX); fmt_ofile_fs.write((char*)&cur_data, 1); 
+					cur_data = std::clamp((int)(*(pdata + 1) * cur_volume), SCHAR_MIN, SCHAR_MAX); fmt_ofile_fs.write((char*)&cur_data, 1); break;
+				case 4:
+					cur_data = std::clamp((int)(*(short*)pdata * cur_volume), SHRT_MIN, SHRT_MAX); fmt_ofile_fs.write((char*)&cur_data, 2); 
+					cur_data = std::clamp((int)(*(short*)(pdata + 2) * cur_volume), SHRT_MIN, SHRT_MAX); fmt_ofile_fs.write((char*)&cur_data, 2); break;
+				case 8:
+					cur_data = std::clamp((int)(*(int*)pdata * cur_volume), INT_MIN, INT_MAX); fmt_ofile_fs.write((char*)&cur_data, 4);
+					cur_data = std::clamp((int)(*(int*)(pdata + 4) * cur_volume), INT_MIN, INT_MAX); fmt_ofile_fs.write((char*)&cur_data, 4); break;
+				default: // ?
+				{
+					for (int j = 0; j < sample_bytesize; j++) {
+						BYTE data = *(pdata + j);
+						fmt_ofile_fs.write((char*)&data, 1); 
+					}
+				}break;
+				}
+			}
+			
+		}
+		if (fade_in_samples < begin_samples){
+			fmt_ofile_fs.write((char*)(begin.data() + fade_in_samples * sample_bytesize), 
+				begin.size() - fade_in_samples * sample_bytesize);
+		}
+		for (int iloop = 0; iloop < (opt->loop_time - 1); iloop++){
+			fmt_ofile_fs.write((char*)loop.data(),loop.size());
+		}
+
+		// last loop and end
+		if (opt->enable_ending){
+			if (fade_out_samples < end_samples + loop_samples) {
+				fmt_ofile_fs.write((char*)loop.data(),
+					std::min(loop_samples, end_samples + loop_samples - fade_out_samples) * sample_bytesize);
+				if(fade_out_samples < end_samples)
+					fmt_ofile_fs.write((char*)end.data(),
+						(end_samples - fade_out_samples) * sample_bytesize);
+			}
+		}else{
+			if (fade_out_samples < loop_samples) {
+				fmt_ofile_fs.write((char*)loop.data(),
+					(loop_samples - fade_out_samples) * sample_bytesize);
+			}
+		}
+
+		int sample_before_fade_out = opt->enable_ending ? 
+			(end_samples + loop_samples - fade_out_samples)
+			: (loop_samples - fade_out_samples);
+
+		for (sample_iter = 0; sample_iter < fade_out_samples; sample_iter++){
+			float cur_volume = volumn_intp(1.0f - (float)sample_iter / (float)fade_out_samples);
+			int cur_sample = sample_before_fade_out + sample_iter;
+			BYTE* pdata = nullptr;
+			if(cur_sample >= loop_samples)
+				pdata = end.data() + (cur_sample - loop_samples) * sample_bytesize;
+			else
+				pdata = loop.data() + cur_sample * sample_bytesize;
+			int cur_data = 0;
+			if (channel == 1) {
+				switch (sample_bytesize) {
+				case 1:
+					cur_data = std::clamp((int)(*pdata * cur_volume), SCHAR_MIN, SCHAR_MAX); fmt_ofile_fs.write((char*)&cur_data, 1); break;
+				case 2:
+					cur_data = std::clamp((int)(*(short*)pdata * cur_volume), SHRT_MIN, SHRT_MAX); fmt_ofile_fs.write((char*)&cur_data, 2); break;
+				case 4:
+					cur_data = std::clamp((int)(*(int*)pdata * cur_volume), INT_MIN, INT_MAX); fmt_ofile_fs.write((char*)&cur_data, 4); break;
+				default: // ?
+				{
+					for (int j = 0; j < sample_bytesize; j++) {
+						BYTE data = *(pdata + j);
+						fmt_ofile_fs.write((char*)&data, 1); 
+					}
+				}break;
+				}
+			}
+			else {
+				switch (sample_bytesize) {
+				case 2:
+					cur_data = std::clamp((int)(*pdata * cur_volume), SCHAR_MIN, SCHAR_MAX); fmt_ofile_fs.write((char*)&cur_data, 1);
+					cur_data = std::clamp((int)(*(pdata + 1) * cur_volume), SCHAR_MIN, SCHAR_MAX); fmt_ofile_fs.write((char*)&cur_data, 1); break;
+				case 4:
+					cur_data = std::clamp((int)(*(short*)pdata * cur_volume), SHRT_MIN, SHRT_MAX); fmt_ofile_fs.write((char*)&cur_data, 2);
+					cur_data = std::clamp((int)(*(short*)(pdata + 2) * cur_volume), SHRT_MIN, SHRT_MAX); fmt_ofile_fs.write((char*)&cur_data, 2); break;
+				case 8:
+					cur_data = std::clamp((int)(*(int*)pdata * cur_volume), INT_MIN, INT_MAX); fmt_ofile_fs.write((char*)&cur_data, 4);
+					cur_data = std::clamp((int)(*(int*)(pdata + 4) * cur_volume), INT_MIN, INT_MAX); fmt_ofile_fs.write((char*)&cur_data, 4); break;
+				default: // ?
+				{
+					for (int j = 0; j < sample_bytesize; j++) {
+						BYTE data = *(pdata + j);
+						fmt_ofile_fs.write((char*)&data, 1); 
+					}
+				}break;
+				}
+			}
+		}
 	}
 }
 

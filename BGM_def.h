@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#define NOMINMAX
 #include <Windows.h>
 #include <fstream>
 #include <vector>
@@ -39,7 +40,7 @@ struct BGM_Info
 	DWORD GetLoopPos() { return beginPos + beginLen; }
 
 	DWORD GetBeginLen() { return beginLen; }
-	DWORD GetLoopLen() { return beginloopLen - beginLen; }
+	DWORD GetLoopLen() { return beginloopLen > beginLen? beginloopLen - beginLen : 0; }
 	DWORD GetBeginLoopLen() { return beginloopLen; }
 
 	DWORD GetTotalLen() { return totalLen; }
@@ -48,16 +49,23 @@ struct BGM_Info
 	float GetLoopLen_s() { return (float)GetLoopLen() / wavHeader.nAvgBytesPerSec; }
 	float GetBeginLoopLen_s() { return (float)GetBeginLoopLen() / wavHeader.nAvgBytesPerSec; }
 	float GetTotalLen_s() { return (float)GetTotalLen() / wavHeader.nAvgBytesPerSec; }
+	DWORD GetSampleByteSize() { return wavHeader.nChannels * wavHeader.wBitsPerSample / 8; }
 
 	void SetBeginLen(int len) {
 		// not use DWORD because need to compare to 0
 		if (len < 0)len = 0; 
 		if (len >= GetBeginLoopLen())len = beginloopLen - wavHeader.nChannels * wavHeader.wBitsPerSample;
+		int ssz = GetSampleByteSize();
+		len = len / ssz * ssz;
+		// align
 		beginLen = len; 
 	}
 	void SetBeginLoopLen(int len) {
 		if (len < GetBeginLen())len = GetBeginLen() + wavHeader.nChannels*wavHeader.wBitsPerSample;
 		if (len > totalLen)len = totalLen;
+		int ssz = GetSampleByteSize();
+		len = len / ssz * ssz;
+		// align
 		beginloopLen = len; 
 	}
 	void SetBeginLen(float ratio) { 
@@ -96,6 +104,14 @@ enum Version
 	TD_AND_LATER
 };
 
+struct BGMWavExportOption
+{
+	bool enable_ending;
+	int loop_time; // >=1
+	float sec_for_fade_in;
+	float sec_for_fade_out;
+};
+
 class BGM_Dump
 {
 	std::wstring datPath;
@@ -110,6 +126,8 @@ public:
 	void LoadBGM(std::wstring wav_folder, std::wstring pos_folder);//EoSD
 	std::string GetBGM4AllFormat();
 	void ExportBGM(const WCHAR* folder);
+	void GetWavFile(BGM_Info * info, std::vector<BYTE> &begin,std::vector<BYTE> &loop,std::vector<BYTE> &end);
+	void ExportBGMWavs(const WCHAR* folder, BGMWavExportOption* opt);
 };
 
 std::ostream& operator<<(std::ostream& os, BGM_Dump& dmp);

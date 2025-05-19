@@ -7,6 +7,7 @@
 #include <memory>
 #include "BGM_def.h"
 #include "BGM_player.h"
+#include <algorithm>
 
 std::unique_ptr<BGM_Player> g_player;
 
@@ -33,16 +34,18 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		ImGui::OpenPopup("load files");
 	}
 	ImVec2 wndSize = ImGui::GetWindowSize();
-	wndSize.x *= 0.8f;
-	wndSize.y *= 0.8f;
-	ImGui::SetNextWindowSize(wndSize);
-	if (ImGui::BeginPopupModal("load files"))
+	ImVec2 nextWindSz = { ImGui::CalcTextSize("  Select musiccmt.txt(optional)  |AAAAAAAAAAAAAAAAAAAAAAAAAAAA").x,ImGui::GetFrameHeight() * 9.0f };
+	ImGui::SetNextWindowSize(nextWindSz);
+	ImGui::SetNextWindowPos({ wndSize.x * 0.5f - nextWindSz.x*0.5f,wndSize.y * 0.5f - nextWindSz.y * 0.5f });
+	if (ImGui::BeginPopupModal("load files",0, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::SetCursorPosY(ImGui::GetWindowHeight()*0.5f-ImGui::GetFrameHeight() * 2.5f);
 		static int ver = 2;
 		ImGui::Combo("version", &ver, "TH06\0TH07-TH13\0TH13+\0\0");
 		if (ver == 0){
 			//EOSD load
 			ImGui::Columns(2);
+			ImGui::SetColumnWidth(0, ImGui::CalcTextSize("  Select musiccmt.txt(optional)  ").x);
 			if (ImGui::Button("Select wav folder")){
 				wav_folder = LauncherWndFolderSelect(L"select wav folder");
 				if (pos_folder.empty()){
@@ -66,6 +69,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		}else{
 			//other load
 			ImGui::Columns(2);
+			ImGui::SetColumnWidth(0, ImGui::CalcTextSize("  Select musiccmt.txt(optional)  ").x);
 			if (ImGui::Button("Select thbgm.dat"))
 			{
 				OPENFILENAME ofn = { 0 };
@@ -207,6 +211,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 
 	BGM_Info* p_cur_selected = (cur_select >= 0 && cur_select <= dump.bgmInfos.size()) ? (&dump.bgmInfos[cur_select]) : nullptr;
 	bool enable_play = p_cur_bgm!=nullptr || p_cur_selected!=nullptr;
+	bool disabled_export = dump.bgmInfos.size() == 0;
 
 	static double cur_bgm_played_pos = 0;
 	ImGui::BeginDisabled(!enable_play);
@@ -223,11 +228,11 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		g_player->Pause();
 	}
 	ImGui::SameLine();
-	ImGui::InvisibleButton("sep", {50.0f,1.0f});
+	ImGui::InvisibleButton("sep", {20.0f,1.0f});
 
 	static WCHAR wav_changed[MAX_PATH];
 	ImGui::SameLine();
-	if (ImGui::Button("change BGM") && (p_cur_bgm || p_cur_selected))
+	if (ImGui::Button("Change BGM") && (p_cur_bgm || p_cur_selected))
 	{
 		BGM_Info* bgm_to_change = p_cur_selected ? p_cur_selected : p_cur_bgm;
 		OPENFILENAME ofn = { 0 };
@@ -245,14 +250,80 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 	}
 
 	ImGui::SameLine();
-	ImGui::InvisibleButton("sep2", { 60.0f,1.0f });
+	ImGui::InvisibleButton("sep2", { 30.0f,1.0f });
 	static float volume = 0.5f;
 	volume = g_player->GetVolume();
 	ImGui::SameLine();
-	ImGui::SetNextItemWidth(200.0f);
+	ImGui::SetNextItemWidth(120.0f);
 	if (ImGui::SliderFloat("volume", &volume, 0.0f, 1.0f))
 		volume = g_player->SetVolume(volume);
+	// add BGM
+	{
+		ImGui::EndDisabled(!enable_play);
+		ImGui::BeginDisabled(disabled_export);
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(),ImGui::GetWindowWidth() - 100.0f));
+		if (ImGui::Button("Add BGM"))
+		{
+			ImGui::OpenPopup("bgm adder");
+		}
 
+
+		ImVec2 wndSize = ImGui::GetWindowSize();
+		ImVec2 nextWindSz = { ImGui::CalcTextSize("BBBBBBBBBBBBBBBBBBBBB  |AAAAAAAAAAAAAAAAAAAAAAAAAAAA").x,ImGui::GetFrameHeight() * 7.0f };
+		ImGui::SetNextWindowSize(nextWindSz);
+		ImGui::SetNextWindowPos({ wndSize.x * 0.5f - nextWindSz.x * 0.5f,wndSize.y * 0.5f - nextWindSz.y * 0.5f });
+		if (ImGui::BeginPopupModal("bgm adder", 0, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
+			ImVec2 wndSize = ImGui::GetWindowSize();
+			static char id_str[15];
+			static WCHAR wav_file_path[MAX_PATH] = { 0 };
+			auto charfilter = [](ImGuiInputTextCallbackData* data) -> int {
+				if (data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter) {
+					if ((data->EventChar >= '0' && data->EventChar <= '9') || 
+						(data->EventChar >= 'A' && data->EventChar <= 'Z') || 
+						(data->EventChar >= 'a' && data->EventChar <= 'z')  || 
+						(data->EventChar == '_')) {
+						return 0;
+					}
+					return 1;
+				}
+				return 0;
+				};
+			ImGui::InputText("BGM id", id_str, sizeof(id_str), ImGuiInputTextFlags_CallbackCharFilter, charfilter);
+			if (ImGui::Button("select wav file")){
+				OPENFILENAME ofn = { 0 };
+				ofn.lStructSize = sizeof(OPENFILENAME);
+				ofn.lpstrFilter = L"wav(*.wav)\0*.wav\0*.*\0\0";
+				ofn.lpstrFile = wav_file_path;
+				ofn.nMaxFile = MAX_PATH;
+				ofn.Flags = OFN_FILEMUSTEXIST;
+				if (!GetOpenFileName(&ofn)) {
+					memset(wav_file_path, 0, sizeof(wav_file_path));
+				}
+			}
+			ImGui::SameLine();
+			ImGui::Text("%s##wav file", (char*)wstr2u8(wav_file_path).c_str());
+			if (ImGui::Button("OK", { 100.0f,ImGui::GetFrameHeight() })){
+				if (wav_file_path[0] != L'\0' && id_str[0]!='\0'){
+					BGM_Info new_bgm = { 0 };
+					new_bgm.idName = id_str;
+					new_bgm.SetToWav(wav_file_path);
+					dump.bgmInfos.push_back(new_bgm);
+					ImGui::CloseCurrentPopup();
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel", { 100.0f,ImGui::GetFrameHeight() }))
+				ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+		}
+		ImGui::EndDisabled(disabled_export);
+		ImGui::BeginDisabled(!enable_play);
+	}
+	
+
+	// progress bar
+	ImGui::Separator();
 	cur_bgm_played_pos = p_cur_bgm ? (double)g_player->GetCurPos() / p_cur_bgm->GetTotalLen() : 0.0f;
 	float cur_bgm_tot_sec = p_cur_bgm ? p_cur_bgm->GetTotalLen_s() : 0.0f;
 	ImGui::ProgressBar(cur_bgm_played_pos, ImVec2(-FLT_MIN, 0), std::format("{:.2f}/{:.2f}", cur_bgm_played_pos * cur_bgm_tot_sec , cur_bgm_tot_sec).c_str());
@@ -353,7 +424,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 	}
 	ImGui::EndDisabled(!enable_play);
 
-	bool disabled_export = dump.bgmInfos.size() == 0;
+	
 	ImGui::BeginDisabled(disabled_export);
 	{
 		if (ImGui::Button("Export")){
@@ -371,7 +442,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		wndSize.x *= 0.8f;
 		wndSize.y *= 0.8f;
 		ImGui::SetNextWindowSize(wndSize);
-		if (ImGui::BeginPopupModal("BGM 4 all fmt"))
+		if (ImGui::BeginPopupModal("BGM 4 all fmt",0, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 		{
 			ImVec2 wndSize = ImGui::GetWindowSize();
 			ImGui::InputTextMultiline("##fmt",(char*)bgm4all_fmt.c_str(),bgm4all_fmt.size(),ImVec2(wndSize.x *= 0.9f, wndSize.y *= 0.8f),ImGuiInputTextFlags_ReadOnly);
@@ -379,6 +450,37 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 				ImGui::CloseCurrentPopup();
 			ImGui::EndPopup();
 		}
+
+		ImGui::SameLine();
+		if (ImGui::Button("Export to .wavs")) {
+			ImGui::OpenPopup("Export to .wavs");
+		}
+		wndSize = ImGui::GetWindowSize();
+		wndSize.x *= 0.6f;
+		wndSize.y *= 0.6f;
+		ImGui::SetNextWindowSize(wndSize);
+		if (ImGui::BeginPopupModal("Export to .wavs",0,ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)){
+			ImGui::NewLine();
+			static BGMWavExportOption opt{true,2,1.0,5.0};
+			ImGui::Checkbox("enable ending", &opt.enable_ending);
+			if (ImGui::DragInt("loop time", &opt.loop_time,1.0f,1,10))
+				opt.loop_time = std::clamp(opt.loop_time, 1, 10);
+			ImGui::DragFloat("fade in time in sec", &opt.sec_for_fade_in, 1.0f, 0.0f, 10.0f);
+			ImGui::DragFloat("fade out time in sec", &opt.sec_for_fade_out, 1.0f, 0.0f, 10.0f);
+
+			if (ImGui::Button("Export", { 100.0f,ImGui::GetFrameHeight() })){
+				std::wstring ws = LauncherWndFolderSelect(L"folder to export");
+				if (!ws.empty())
+					dump.ExportBGMWavs(ws.c_str(), &opt);
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel", { 100.0f,ImGui::GetFrameHeight() })) {
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+		}
+
 	}
 	ImGui::EndDisabled(disabled_export);
 	ImGui::SameLine();
@@ -391,7 +493,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		wndSize.x *= 0.8f;
 		wndSize.y *= 0.8f;
 		ImGui::SetNextWindowSize(wndSize);
-		if (ImGui::BeginPopupModal("about")) {
+		if (ImGui::BeginPopupModal("about",0, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
 			ImVec2 wndSize = ImGui::GetWindowSize();
 			static std::u8string about = u8"Author: Rue\nGithub: https://github.com/RUEEE/TH_BGM_Replacer\nDate: 2025/05/19";
 			ImGui::InputTextMultiline("##abt", (char*)about.c_str(), about.size(), ImVec2(wndSize.x *= 0.9f, wndSize.y *= 0.8f), ImGuiInputTextFlags_ReadOnly);
@@ -419,7 +521,7 @@ int WINAPI wWinMain(
 
 	ImGuiWindowInfo info = { 0 };
 	info.className = L"windClass";
-	info.title = L"TH BGM replacer(1.0)";
+	info.title = L"TH BGM replacer(1.1)";
 	info.hInstance = hInstance;
 	info.initialWidth = 640;
 	info.initialHeight = 480;

@@ -70,21 +70,21 @@ HRESULT BGM_Player::Play(BGM_Info* pInfo, DWORD pos)
 	if (state.BuffersQueued==0){
 		memset(&buf,0,sizeof(buf));
 		buf.Flags = 0;
-		DWORD sample = pInfo->wavHeader.nChannels * pInfo->wavHeader.wBitsPerSample / 8;
+		DWORD sample_size = pInfo->GetSampleByteSize();
 		buf.pAudioData = buffer.data();
-		buf.AudioBytes = buffer.size()/sample * sample; //aligned to sample
+		buf.AudioBytes = buffer.size()/sample_size * sample_size; //aligned to sample
 		if (pos < 0)pos = 0;
 		if (pos < pInfo->GetBeginLoopLen()){
-			buf.PlayBegin = pos / sample;
-			buf.PlayLength = pInfo->GetBeginLoopLen()/ sample - buf.PlayBegin;
-			buf.LoopBegin = pInfo->GetBeginLen()/ sample;
-			buf.LoopLength = pInfo->GetLoopLen() / sample;
+			buf.PlayBegin = pos / sample_size;
+			buf.PlayLength = pInfo->GetBeginLoopLen()/ sample_size - buf.PlayBegin;
+			buf.LoopBegin = pInfo->GetBeginLen()/ sample_size;
+			buf.LoopLength = pInfo->GetLoopLen() / sample_size;
 			buf.LoopCount = XAUDIO2_LOOP_INFINITE;
 		}else{
 			if (pos > pInfo->GetTotalLen())
 				pos = pInfo->GetTotalLen() - 100;
-			buf.PlayBegin = pos / sample;
-			buf.PlayLength = pInfo->GetTotalLen() / sample - buf.PlayBegin;
+			buf.PlayBegin = pos / sample_size;
+			buf.PlayLength = pInfo->GetTotalLen() / sample_size - buf.PlayBegin;
 			buf.LoopBegin = 0;
 			buf.LoopLength = 0;
 			buf.LoopCount = 0;
@@ -148,8 +148,8 @@ DWORD BGM_Player::GetCurPos()
 		return 0;
 	XAUDIO2_VOICE_STATE state;
 	pSourceVoice->GetState(&state);
-	DWORD sample = curBGM->wavHeader.nChannels * curBGM->wavHeader.wBitsPerSample / 8;
-	return (state.SamplesPlayed - samplesPlayedBeforeLastStop) * sample;
+	DWORD sample_size = curBGM->GetSampleByteSize();
+	return (state.SamplesPlayed - samplesPlayedBeforeLastStop) * sample_size;
 }
 
 HRESULT BGM_Player::ResetCurBGM()

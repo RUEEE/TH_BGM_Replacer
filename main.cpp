@@ -16,16 +16,16 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 {
 	static BGM_Dump dump;
 	static int cur_select = -1;
-	static WCHAR dat_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\thbgm.dat";
-	static WCHAR fmt_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\data\\thbgm.fmt";
-	static WCHAR cmt_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\data\\musiccmt.txt";
+	// static WCHAR dat_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\thbgm.dat";
+	// static WCHAR fmt_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\data\\thbgm.fmt";
+	// static WCHAR cmt_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\data\\musiccmt.txt";
 	// 
 	// static std::wstring wav_folder = L"C:\\disk\\touhou\\TH06-HMX\\bgm";
 	// static std::wstring pos_folder = L"C:\\disk\\touhou\\TH06-HMX\\data";
 
-	// static WCHAR dat_file[MAX_PATH] = L"";
-	// static WCHAR fmt_file[MAX_PATH] = L"";
-	// static WCHAR cmt_file[MAX_PATH] = L"";
+	static WCHAR dat_file[MAX_PATH] = L"";
+	static WCHAR fmt_file[MAX_PATH] = L"";
+	static WCHAR cmt_file[MAX_PATH] = L"";
 
 	static std::wstring wav_folder = L"";
 	static std::wstring pos_folder = L"";

@@ -574,20 +574,52 @@ bool BGM_Info::SetToWav(WCHAR* path)
 {
 	this->type = WAV_FILE;
 	std::fstream fs(path, std::ios::in | std::ios::binary);
+	if (!fs.is_open()) return false;
+
 	struct {
 		char chunkID[4];
 		DWORD chunksize;
 		char format[4];
-		char subchunk1ID[4];
-		DWORD Subchunk1Size;
 	}header1 = { 0 };
 	fs.read((char*)&header1, sizeof(header1));
 	if (header1.chunkID[0] != 'R' || header1.chunkID[1] != 'I' || header1.chunkID[2] != 'F' || header1.chunkID[3] != 'F')
 		return false;
 	if (header1.format[0] != 'W' || header1.format[1] != 'A' || header1.format[2] != 'V' || header1.format[3] != 'E')
 		return false;
-	if (header1.subchunk1ID[0] != 'f' || header1.subchunk1ID[1] != 'm' || header1.subchunk1ID[2] != 't' || header1.subchunk1ID[3] != ' ')
+
+	bool foundFmt = false;
+	bool foundData = false;
+	uint32_t dataSize = 0;
+	while(fs.peek() != EOF) {
+		char subChunkID[4];
+		uint32_t subChunkSize;
+		if (!fs.read(subChunkID, 4)) break;
+		if (!fs.read((char*)&subChunkSize, 4)) break;
+		if (strncmp(subChunkID, "fmt ", 4) == 0) {
+			uint32_t readSize = (subChunkSize < 0x10) ? subChunkSize : 0x10;
+			fs.read((char*)&this->wavHeader, readSize);
+			if (subChunkSize > readSize) {
+				fs.seekg(subChunkSize - readSize, std::ios::cur);
+			}
+			this->wavHeader.cbSize = 0;
+			foundFmt = true;
+		}else if (strncmp(subChunkID, "data", 4) == 0) {
+			this->beginPos = (uint32_t)fs.tellg();
+			this->beginLen = 0;
+			this->beginloopLen = subChunkSize;
+			this->totalLen = subChunkSize;
+			dataSize = subChunkSize;
+			foundData = true;
+			break;
+		} else {
+			uint32_t skipSize = (subChunkSize + 1) & ~1;
+			fs.seekg(skipSize, std::ios::cur);
+		}
+	}
+	if (!foundFmt || !foundData)
 		return false;
+	BGMFilePath_wav = path;
+	return true;
 
 	fs.read((char*)&this->wavHeader, 0x10);
 	this->wavHeader.cbSize = 0;

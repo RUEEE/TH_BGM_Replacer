@@ -21,6 +21,9 @@ protected:
 	bool is_paused;
 	float volume;
 public:
+	float loop_pos_estm_begin;
+	float loop_pos_estm_end;
+
 	PlayerCallback* pCallback;
 	BGM_Player();
 	HRESULT Init();
@@ -30,6 +33,7 @@ public:
 	HRESULT Stop();
 	HRESULT Pause();
 	HRESULT SetPos(BGM_Info* pBgm, DWORD pos);
+	DWORD EstimateLoop(BGM_Info* pInfo);
 	DWORD GetCurPos();
 	HRESULT ResetCurBGM();
 	float SetVolume(float vin);

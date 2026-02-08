@@ -151,6 +151,7 @@
     <ClInclude Include="3rdParty\ImGui\imstb_truetype.h" />
     <ClInclude Include="BGM_def.h" />
     <ClInclude Include="BGM_player.h" />
+    <ClInclude Include="about.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="window.h" />

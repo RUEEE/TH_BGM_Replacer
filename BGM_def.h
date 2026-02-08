@@ -32,8 +32,8 @@ struct BGM_Info
 	DWORD totalLen;
 	// bgm:
 	// ----------begin-----------------|-------loop---------|---others---
-	//beginpos                   loopPos      
-	// --------------beginrLen---------|-----loopLen--------
+	// beginpos                   loopPos      
+	// --------------beginLen----------|-----loopLen--------
 	// -------------------beginloopLen----------------------    
 	// ---------------------totalLen-------------------------------------
 	DWORD GetBeginPos() { return beginPos; }

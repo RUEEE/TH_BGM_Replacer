@@ -8,6 +8,7 @@
 #include "BGM_def.h"
 #include "BGM_player.h"
 #include <algorithm>
+#include "about.h"
 
 std::unique_ptr<BGM_Player> g_player;
 
@@ -15,16 +16,16 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 {
 	static BGM_Dump dump;
 	static int cur_select = -1;
-	// static WCHAR dat_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\thbgm.dat";
-	// static WCHAR fmt_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\data\\thbgm.fmt";
-	// static WCHAR cmt_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\data\\musiccmt.txt";
+	static WCHAR dat_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\thbgm.dat";
+	static WCHAR fmt_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\data\\thbgm.fmt";
+	static WCHAR cmt_file[MAX_PATH] = L"C:\\disk\\touhou\\TH15-GZZ\\data\\musiccmt.txt";
 	// 
 	// static std::wstring wav_folder = L"C:\\disk\\touhou\\TH06-HMX\\bgm";
 	// static std::wstring pos_folder = L"C:\\disk\\touhou\\TH06-HMX\\data";
 
-	static WCHAR dat_file[MAX_PATH] = L"";
-	static WCHAR fmt_file[MAX_PATH] = L"";
-	static WCHAR cmt_file[MAX_PATH] = L"";
+	// static WCHAR dat_file[MAX_PATH] = L"";
+	// static WCHAR fmt_file[MAX_PATH] = L"";
+	// static WCHAR cmt_file[MAX_PATH] = L"";
 
 	static std::wstring wav_folder = L"";
 	static std::wstring pos_folder = L"";
@@ -229,7 +230,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 	}
 	ImGui::SameLine();
 	ImGui::InvisibleButton("sep", {20.0f,1.0f});
-
+	
 	static WCHAR wav_changed[MAX_PATH];
 	ImGui::SameLine();
 	if (ImGui::Button("Change BGM") && (p_cur_bgm || p_cur_selected))
@@ -243,12 +244,31 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		ofn.Flags = OFN_FILEMUSTEXIST;
 		if (!GetOpenFileName(&ofn)) {
 			memset(wav_changed, 0, sizeof(wav_changed));
+		}else{
+			if (!bgm_to_change->SetToWav(wav_changed))
+			{
+				MessageBoxA(NULL, "Fail to load BGM. Please ensure BGM format is wav(PCM, better use 44100Hz/stereo/16-bit).", "failed", MB_OK);
+			}
+			if (p_cur_bgm == bgm_to_change) {
+				if (FAILED(g_player->LoadBGM(bgm_to_change))) {
+					MessageBoxA(NULL, "Fail to load BGM. Please ensure BGM format is wav(PCM, better use 44100Hz/stereo/16-bit).", "failed", MB_OK);
+				}
+			}
 		}
-		bgm_to_change->SetToWav(wav_changed);
-		if(p_cur_bgm == bgm_to_change)
-			g_player->LoadBGM(bgm_to_change);
 	}
-
+	ImGui::SameLine();
+	ImGui::InvisibleButton("sep", { 20.0f,1.0f });
+	ImGui::SameLine();
+	if (ImGui::Button("Estimate Loop Pos")) {
+		p_cur_bgm = p_cur_selected;
+		g_player->EstimateLoop(p_cur_bgm);
+	}
+	ImGui::SameLine();
+	ImGui::Text("(?)");
+	if (ImGui::IsItemHovered()){
+		ImGui::SetTooltip("Estimate the audio segment loop point.\nEstimate begins/ends at the rectangle markers.\nIt will attempt to maintain BGM continuity \nbetween the yellow and red markers by moving red marker.");
+	}
+	
 	ImGui::SameLine();
 	ImGui::InvisibleButton("sep2", { 30.0f,1.0f });
 	static float volume = 0.5f;
@@ -307,8 +327,11 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 				if (wav_file_path[0] != L'\0' && id_str[0]!='\0'){
 					BGM_Info new_bgm = { 0 };
 					new_bgm.idName = id_str;
-					new_bgm.SetToWav(wav_file_path);
-					dump.bgmInfos.push_back(new_bgm);
+					if (!new_bgm.SetToWav(wav_file_path)){
+						MessageBoxA(NULL, "Fail to load BGM. Please ensure BGM format is wav(PCM, better use 44100Hz/stereo/16-bit).", "failed", MB_OK);
+					}else{
+						dump.bgmInfos.push_back(new_bgm);
+					}
 					ImGui::CloseCurrentPopup();
 				}
 			}
@@ -329,31 +352,50 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 	ImGui::ProgressBar(cur_bgm_played_pos, ImVec2(-FLT_MIN, 0), std::format("{:.2f}/{:.2f}", cur_bgm_played_pos * cur_bgm_tot_sec , cur_bgm_tot_sec).c_str());
 	ImVec2  prog_mx = ImGui::GetItemRectMax();
 	ImVec2  prog_mn = ImGui::GetItemRectMin();
-	static bool is_draging_tri1 = false, is_draging_tri2 = false;
-	if (p_cur_bgm && ImGui::IsItemHovered(ImGuiMouseButton_Left) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !is_draging_tri1 && !is_draging_tri2) {
+	static bool is_draging_tri1 = false, is_draging_tri2 = false,is_draging_tri3 = false,is_draging_tri4 = false;
+	if (p_cur_bgm && ImGui::IsItemHovered(ImGuiMouseButton_Left) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !is_draging_tri1 && !is_draging_tri2 && !is_draging_tri3 && !is_draging_tri4) {
 		cur_bgm_played_pos = (ImGui::GetMousePos().x - prog_mn.x) / (prog_mx.x - prog_mn.x);
 		g_player->SetPos(p_cur_bgm, (DWORD)floor(cur_bgm_played_pos * p_cur_bgm->GetTotalLen()));
 	}
 	if (p_cur_bgm) {
+		float prog_height = prog_mx.y - prog_mn.y;
+		float tri_ratio = 0.25f;
+		float rc_ratio = 0.3f;
+
 		auto p = ImGui::GetWindowDrawList();
+
 		float prog_loop = (float)p_cur_bgm->GetBeginLen() / p_cur_bgm->GetTotalLen();
 		float prog_end = (float)p_cur_bgm->GetBeginLoopLen() / p_cur_bgm->GetTotalLen();
+		float estm_1 = (float)g_player->loop_pos_estm_begin;
+		float estm_2 = (float)g_player->loop_pos_estm_end;
+
 		float loop_x = (prog_mx.x - prog_mn.x) * prog_loop + prog_mn.x;
 		float end_x = (prog_mx.x - prog_mn.x) * prog_end + prog_mn.x;
+		float estm_1_x = (prog_mx.x - prog_mn.x) * estm_1 + prog_mn.x;
+		float estm_2_x = (prog_mx.x - prog_mn.x) * estm_2 + prog_mn.x;
+
 		DWORD loop_col = 0xFFFF0000;
 		DWORD end_col = 0xFFFFFF00;
+
+		DWORD estm1_col = 0xFF22CCFF;
+		DWORD estm2_col = 0xFFFF66CC;
+
+
 		p->AddLine({ loop_x,prog_mn.y }, { loop_x,prog_mx.y }, loop_col);
 		p->AddLine({ end_x,prog_mn.y }, { end_x,prog_mx.y }, end_col);
+		p->AddLine({ estm_1_x, prog_mn.y }, { estm_1_x, prog_mx.y + rc_ratio * prog_height }, estm1_col);
+		p->AddLine({ estm_2_x, prog_mn.y }, { estm_2_x, prog_mx.y + rc_ratio * prog_height }, estm2_col);
 
-		float prog_height = prog_mx.y - prog_mn.y;
-		float tri_ratio = 0.2;
+		p->AddRectFilled({ estm_1_x,prog_mn.y }, { estm_2_x,prog_mx.y }, 0x33CCCCCC);
+
+		
 		ImVec2 lp1, lp2, lp3;
 		lp1 = { loop_x,prog_mx.y };
 		lp2 = { lp1.x - prog_height * tri_ratio,lp1.y + prog_height * 0.7f };
 		lp3 = { lp1.x + prog_height * tri_ratio,lp1.y + prog_height * 0.7f };
 		p->AddTriangleFilled(lp1, lp2, lp3, loop_col);
 
-		if (ImGui::IsMouseHoveringRect({ lp2.x,lp1.y }, { lp3.x,lp3.y }) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !is_draging_tri2)
+		if (ImGui::IsMouseHoveringRect({ lp2.x,lp1.y }, { lp3.x,lp3.y }) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !is_draging_tri2 && !is_draging_tri3 && !is_draging_tri4)
 			is_draging_tri1 = true;
 		if (is_draging_tri1)
 		{
@@ -367,7 +409,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		lp2 = { lp1.x - prog_height * tri_ratio,lp1.y + prog_height * 0.7f };
 		lp3 = { lp1.x + prog_height * tri_ratio,lp1.y + prog_height * 0.7f };
 		p->AddTriangleFilled(lp1, lp2, lp3, end_col);
-		if (ImGui::IsMouseHoveringRect({ lp2.x,lp1.y }, { lp3.x,lp3.y }) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !is_draging_tri1)
+		if (ImGui::IsMouseHoveringRect({ lp2.x,lp1.y }, { lp3.x,lp3.y }) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !is_draging_tri1 && !is_draging_tri3 && !is_draging_tri4)
 			is_draging_tri2 = true;
 		if (is_draging_tri2)
 		{
@@ -376,6 +418,34 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 			float cur_mouse_pos = (ImGui::GetMousePos().x - prog_mn.x) / (prog_mx.x - prog_mn.x);
 			p_cur_bgm->SetBeginLoopLen(cur_mouse_pos);
 			g_player->ResetCurBGM();
+		}
+
+		lp1 = { estm_1_x,prog_mx.y + rc_ratio * prog_height };
+		lp2 = { lp1.x - prog_height * rc_ratio,lp1.y };
+		lp3 = { lp1.x + prog_height * rc_ratio,lp1.y + prog_height * rc_ratio * 2.0f };
+		p->AddRectFilled(lp2, lp3, estm1_col);
+		if (ImGui::IsMouseHoveringRect(lp2, lp3) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !is_draging_tri1 && !is_draging_tri2 && !is_draging_tri4)
+			is_draging_tri3 = true;
+		if (is_draging_tri3)
+		{
+			if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || is_draging_tri1)
+				is_draging_tri3 = false;
+			float cur_mouse_pos = (ImGui::GetMousePos().x - prog_mn.x) / (prog_mx.x - prog_mn.x);
+			g_player->loop_pos_estm_begin = std::clamp(cur_mouse_pos,0.0f,g_player->loop_pos_estm_end);
+		}
+
+		lp1 = { estm_2_x,prog_mx.y + rc_ratio * prog_height };
+		lp2 = { lp1.x - prog_height * rc_ratio,lp1.y};
+		lp3 = { lp1.x + prog_height * rc_ratio,lp1.y + prog_height * rc_ratio * 2.0f };
+		p->AddRectFilled(lp2, lp3, estm2_col);
+		if (ImGui::IsMouseHoveringRect(lp2,lp3) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !is_draging_tri1 && !is_draging_tri2 && !is_draging_tri3)
+			is_draging_tri4 = true;
+		if (is_draging_tri4)
+		{
+			if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || is_draging_tri1)
+				is_draging_tri4 = false;
+			float cur_mouse_pos = (ImGui::GetMousePos().x - prog_mn.x) / (prog_mx.x - prog_mn.x);
+			g_player->loop_pos_estm_end = std::clamp(cur_mouse_pos, g_player->loop_pos_estm_begin, 1.0f);
 		}
 	}
 
@@ -394,7 +464,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		ImGui::Columns(2);
 		ImGui::SetColumnWidth(0, 300.0f);
 		ImGui::SetNextItemWidth(150.0f);
-		if (ImGui::InputInt("loop pos(hex)", &begin_len, 1, 100, ImGuiInputTextFlags_CharsHexadecimal) && bgm_to_change) {
+		if (ImGui::InputInt("loop pos(hex)", &begin_len, bgm_to_change ? bgm_to_change->GetSampleByteSize(): 1 , 100, ImGuiInputTextFlags_CharsHexadecimal) && bgm_to_change) {
 			bgm_to_change->SetBeginLen(begin_len);
 			if(bgm_to_change==p_cur_bgm)
 				g_player->ResetCurBGM();
@@ -408,7 +478,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		}
 		ImGui::NextColumn();
 		ImGui::SetNextItemWidth(150.0f);
-		if (ImGui::InputInt("end pos(hex)", &beginloop_len, 1, 100, ImGuiInputTextFlags_CharsHexadecimal) && bgm_to_change) {
+		if (ImGui::InputInt("end pos(hex)", &beginloop_len, bgm_to_change ? bgm_to_change->GetSampleByteSize() : 1, 100, ImGuiInputTextFlags_CharsHexadecimal) && bgm_to_change) {
 			bgm_to_change->SetBeginLoopLen(beginloop_len);
 			if (bgm_to_change == p_cur_bgm)
 				g_player->ResetCurBGM();
@@ -495,7 +565,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		ImGui::SetNextWindowSize(wndSize);
 		if (ImGui::BeginPopupModal("about",0, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
 			ImVec2 wndSize = ImGui::GetWindowSize();
-			static std::u8string about = u8"Author: Rue\nGithub: https://github.com/RUEEE/TH_BGM_Replacer\nDate: 2025/05/19";
+			static std::u8string about = about_str;
 			ImGui::InputTextMultiline("##abt", (char*)about.c_str(), about.size(), ImVec2(wndSize.x *= 0.9f, wndSize.y *= 0.8f), ImGuiInputTextFlags_ReadOnly);
 			if (ImGui::Button("OK",{100.0f,ImGui::GetFrameHeight()}))
 				ImGui::CloseCurrentPopup();
@@ -521,7 +591,7 @@ int WINAPI wWinMain(
 
 	ImGuiWindowInfo info = { 0 };
 	info.className = L"windClass";
-	info.title = L"TH BGM replacer(1.1)";
+	info.title = L"TH BGM replacer(2.3)";
 	info.hInstance = hInstance;
 	info.initialWidth = 640;
 	info.initialHeight = 480;

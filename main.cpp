@@ -299,10 +299,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 			static WCHAR wav_file_path[MAX_PATH] = { 0 };
 			auto charfilter = [](ImGuiInputTextCallbackData* data) -> int {
 				if (data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter) {
-					if ((data->EventChar >= '0' && data->EventChar <= '9') || 
-						(data->EventChar >= 'A' && data->EventChar <= 'Z') || 
-						(data->EventChar >= 'a' && data->EventChar <= 'z')  || 
-						(data->EventChar == '_')) {
+					if (isprint(data->EventChar)) {
 						return 0;
 					}
 					return 1;
@@ -591,7 +588,7 @@ int WINAPI wWinMain(
 
 	ImGuiWindowInfo info = { 0 };
 	info.className = L"windClass";
-	info.title = L"TH BGM replacer(2.3)";
+	info.title = L"TH BGM replacer(2.3.1)";
 	info.hInstance = hInstance;
 	info.initialWidth = 640;
 	info.initialHeight = 480;

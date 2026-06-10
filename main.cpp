@@ -609,7 +609,7 @@ int WINAPI wWinMain(
 
 	ImGuiWindowInfo info = { 0 };
 	info.className = L"windClass";
-	info.title = L"TH BGM replacer(2.3.1)";
+	info.title = L"TH BGM replacer(2.3.2)";
 	info.hInstance = hInstance;
 	info.initialWidth = 640;
 	info.initialHeight = 480;

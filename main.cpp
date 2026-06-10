@@ -8,6 +8,7 @@
 #include "BGM_def.h"
 #include "BGM_player.h"
 #include <algorithm>
+#include <filesystem>
 #include "about.h"
 
 std::unique_ptr<BGM_Player> g_player;
@@ -35,7 +36,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 		ImGui::OpenPopup("load files");
 	}
 	ImVec2 wndSize = ImGui::GetWindowSize();
-	ImVec2 nextWindSz = { ImGui::CalcTextSize("  Select musiccmt.txt(optional)  |AAAAAAAAAAAAAAAAAAAAAAAAAAAA").x,ImGui::GetFrameHeight() * 9.0f };
+	ImVec2 nextWindSz = { ImGui::CalcTextSize("  Select musiccmt.txt(optional)  |AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA").x,ImGui::GetFrameHeight() * 15.0f };
 	ImGui::SetNextWindowSize(nextWindSz);
 	ImGui::SetNextWindowPos({ wndSize.x * 0.5f - nextWindSz.x*0.5f,wndSize.y * 0.5f - nextWindSz.y * 0.5f });
 	if (ImGui::BeginPopupModal("load files",0, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
@@ -101,7 +102,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 				}
 			}
 			ImGui::NextColumn();
-			ImGui::Text("%s", wstr2u8(dat_file).c_str());
+			ImGui::TextWrapped("%s", wstr2u8(dat_file).c_str());
 			ImGui::NextColumn();
 			if (ImGui::Button("Select thbgm.fmt"))
 			{
@@ -124,7 +125,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 				}
 			}
 			ImGui::NextColumn();
-			ImGui::Text("%s", wstr2u8(fmt_file).c_str());
+			ImGui::TextWrapped("%s", wstr2u8(fmt_file).c_str());
 			ImGui::NextColumn();
 			if (ImGui::Button("Select musiccmt.txt(optional)"))
 			{
@@ -139,7 +140,7 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 				}
 			}
 			ImGui::NextColumn();
-			ImGui::Text("%s", wstr2u8(cmt_file).c_str());
+			ImGui::TextWrapped("%s", wstr2u8(cmt_file).c_str());
 			ImGui::NextColumn();
 			ImGui::Columns(1);
 		}
@@ -496,8 +497,28 @@ bool WindowUpdateFunc(ImGuiWindow* pWind)
 	{
 		if (ImGui::Button("Export")){
 			std::wstring ws = LauncherWndFolderSelect(L"folder to export");
-			if(!ws.empty())
-				dump.ExportBGM(ws.c_str());
+			if (!ws.empty()){
+				try
+				{
+					std::filesystem::path src_dat = std::filesystem::absolute(std::filesystem::path(dat_file));
+					std::filesystem::path dst_dat = std::filesystem::absolute(std::filesystem::path(ws) / L"thbgm.dat");
+
+					std::filesystem::path src_fmt = std::filesystem::absolute(std::filesystem::path(fmt_file));
+					std::filesystem::path dst_fmt = std::filesystem::absolute(std::filesystem::path(ws) / L"thbgm.fmt");
+					if (
+						(std::filesystem::exists(src_dat) && std::filesystem::exists(dst_dat) && std::filesystem::equivalent(src_dat, dst_dat)) ||
+						(std::filesystem::exists(src_fmt) && std::filesystem::exists(dst_fmt) && std::filesystem::equivalent(src_fmt, dst_fmt))
+						)
+					{
+						MessageBoxW(NULL,L"Cannot export due to source and destination paths being the same.",L"Warning",MB_OK | MB_ICONWARNING);
+					}else{
+						dump.ExportBGM(ws.c_str());
+					}
+				}
+				catch (const std::filesystem::filesystem_error&){
+					MessageBoxW(NULL,L"Error on checking the path of dat file",L"Warning",MB_OK | MB_ICONWARNING);
+				}
+			}
 		}
 		ImGui::SameLine();
 		static std::string bgm4all_fmt="";

@@ -217,6 +217,27 @@ std::string BGM_Dump::GetBGM4AllFormat()
 	return ss.str();
 }
 
+static bool CopyBytes(std::istream& in, std::ostream& out, uint64_t bytes)
+{
+	constexpr size_t BUF_SIZE = 1024 * 1024; // 1MB
+	std::vector<char> buffer(BUF_SIZE);
+	while (bytes > 0) {
+		size_t chunk = static_cast<size_t>(std::min<uint64_t>(bytes, buffer.size()));
+		in.read(buffer.data(), chunk);
+		std::streamsize got = in.gcount();
+		if (got <= 0)
+			return false;
+		out.write(buffer.data(), got);
+		if (!out)
+			return false;
+		bytes -= static_cast<uint64_t>(got);
+		if (static_cast<size_t>(got) != chunk)
+			return false;
+	}
+
+	return true;
+}
+
 void BGM_Dump::ExportBGM(const WCHAR* folder)
 {
 	if (version == EOSD)
@@ -244,61 +265,71 @@ void BGM_Dump::ExportBGM(const WCHAR* folder)
 		std::fstream dat_ifile(datPath, std::ios::in | std::ios::binary);
 		if (!dat_ifile.is_open())
 			return;
+
 		// thbgm.dat header
 		char dat_head[0x10];
 		dat_ifile.read(dat_head, 0x10);
-
-		// contents
-		std::vector<std::vector<BYTE>> wav_bytes;
+		if (!dat_ifile)
+			return;
+		std::filesystem::path dat_opath = folder;
+		dat_opath = dat_opath / "thbgm.dat";
+		std::fstream dat_ofile_fs(
+			dat_opath,
+			std::ios::out | std::ios::binary | std::ios::trunc
+		);
+		if (!dat_ofile_fs.is_open())
+			return;
+		dat_ofile_fs.write(dat_head, 0x10);
+		if (!dat_ofile_fs)
+			return;
 		std::vector<SingleBGM> fmts;
-		wav_bytes.resize(bgmInfos.size());
 		fmts.resize(bgmInfos.size());
+
 		DWORD dat_file_ofs = 0x10;
-		for (int i = 0; i < bgmInfos.size(); i++) {
+
+		for (size_t i = 0; i < bgmInfos.size(); i++) {
 			auto& it = bgmInfos[i];
 			memset(&fmts[i], 0, sizeof(fmts[i]));
 			for (int j = 0; j < 16; j++) {
 				fmts[i].file_name[j] = j < it.idName.size() ? it.idName[j] : 0;
 			}
+			const uint64_t begin_pos = it.GetBeginPos();
+			const uint64_t len = it.GetBeginLoopLen();
+
 			fmts[i].begin_pos = dat_file_ofs;
 			fmts[i].total_len = it.GetBeginLoopLen();
 			fmts[i].begin_len = it.GetBeginLen();
 			fmts[i].wav_header = it.wavHeader;
 			fmts[i].unknown = version == TD_AND_LATER ? fmts[i].total_len : it.unknown;
 
-			// bgm reading
 			if (it.type == DAT_FILE) {
-				dat_ifile.seekg(it.GetBeginPos(), std::ios::beg);
-				wav_bytes[i].resize(it.GetBeginLoopLen());
-				dat_ifile.read((char*)wav_bytes[i].data(), it.GetBeginLoopLen());
-				dat_file_ofs += it.GetBeginLoopLen();
+				dat_ifile.clear();
+				dat_ifile.seekg(begin_pos, std::ios::beg);
+				if (!CopyBytes(dat_ifile, dat_ofile_fs, len))
+					return;
+			} else {
+				std::fstream wav_ifile(
+					it.BGMFilePath_wav,
+					std::ios::in | std::ios::binary
+				);
+				if (!wav_ifile.is_open())
+					return;
+				wav_ifile.seekg(begin_pos, std::ios::beg);
+				if (!CopyBytes(wav_ifile, dat_ofile_fs, len))
+					return;
 			}
-			else {
-				std::fstream wav_ifile(it.BGMFilePath_wav, std::ios::in | std::ios::binary);
-				wav_ifile.seekg(it.GetBeginPos(), std::ios::beg);
-				wav_bytes[i].resize(it.GetBeginLoopLen());
-				wav_ifile.read((char*)wav_bytes[i].data(), it.GetBeginLoopLen());
-				dat_file_ofs += it.GetBeginLoopLen();
-				wav_ifile.close();
-			}
+			dat_file_ofs += static_cast<DWORD>(len);
 		}
-
-		// write to file (dat)
-		std::filesystem::path dat_opath = folder;
-		dat_opath = dat_opath / "thbgm.dat";
-		std::fstream dat_ofile_fs(dat_opath, std::ios::out | std::ios::binary | std::ios::trunc);
-
-		dat_ofile_fs.write(dat_head, 0x10);
-		for (auto& it : wav_bytes)
-			dat_ofile_fs.write((char*)it.data(), it.size());
 		dat_ofile_fs.close();
 
-		// write to file (fmt)
 		std::filesystem::path fmt_opath = folder;
 		fmt_opath = fmt_opath / "thbgm.fmt";
-		std::fstream fmt_ofile_fs(fmt_opath, std::ios::out | std::ios::binary | std::ios::trunc);
-		for (int i = 0; i < fmts.size(); i++)
-			fmt_ofile_fs.write((char*)(&(fmts[i])), sizeof(fmts[i]));
+		std::fstream fmt_ofile_fs(fmt_opath,std::ios::out | std::ios::binary | std::ios::trunc);
+		if (!fmt_ofile_fs.is_open())
+			return;
+		for (size_t i = 0; i < fmts.size(); i++) {
+			fmt_ofile_fs.write(reinterpret_cast<char*>(&fmts[i]),sizeof(fmts[i]));
+		}
 		char fmt_end[0x11] = { 0 };
 		fmt_ofile_fs.write(fmt_end, 0x11);
 		fmt_ofile_fs.close();
